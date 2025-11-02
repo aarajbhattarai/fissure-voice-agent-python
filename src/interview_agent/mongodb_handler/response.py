@@ -9,6 +9,8 @@ from mindsdb_sql_parser.ast import ASTNode
 from interview_agent.utilities.log import getLogger
 
 logger = getLogger(__name__)
+
+
 class RESPONSE_TYPE:  # noqa: N801
     __slots__ = ()
     OK = "ok"
@@ -18,6 +20,7 @@ class RESPONSE_TYPE:  # noqa: N801
 
 
 RESPONSE_TYPE = RESPONSE_TYPE()
+
 
 class MYSQL_DATA_TYPE(enum.Enum):  # noqa: N801
     TINYINT = "TINYINT"
@@ -51,6 +54,7 @@ class MYSQL_DATA_TYPE(enum.Enum):  # noqa: N801
     JSON = "JSON"
     VECTOR = "VECTOR"
 
+
 @dataclass(frozen=True)
 class _INFORMATION_SCHEMA_COLUMNS_NAMES:  # noqa: N801
     """Set of DataFrame columns that must be returned when calling `handler.get_columns(...)`.
@@ -79,9 +83,14 @@ INF_SCHEMA_COLUMNS_NAMES_SET = set(f.name for f in fields(INF_SCHEMA_COLUMNS_NAM
 
 class HandlerResponse:
     def __init__(
-            self, resp_type: RESPONSE_TYPE, data_frame: pandas.DataFrame = None, query: ASTNode = 0,
-            error_code: int = 0, error_message: str | None = None, affected_rows: int | None = None,
-            mysql_types: list[MYSQL_DATA_TYPE] | None = None
+        self,
+        resp_type: RESPONSE_TYPE,
+        data_frame: pandas.DataFrame = None,
+        query: ASTNode = 0,
+        error_code: int = 0,
+        error_message: str | None = None,
+        affected_rows: int | None = None,
+        mysql_types: list[MYSQL_DATA_TYPE] | None = None,
     ) -> None:
         self.resp_type = resp_type
         self.query = query
@@ -165,14 +174,17 @@ class HandlerResponse:
         }
 
     def __repr__(self):
-        return "%s: resp_type=%s, query=%s, data_frame=\n%s\nerr_code=%s, error=%s, affected_rows=%s" % (  # noqa: UP031
-            self.__class__.__name__,
-            self.resp_type,
-            self.query,
-            self.data_frame,
-            self.error_code,
-            self.error_message,
-            self.affected_rows,
+        return (
+            "%s: resp_type=%s, query=%s, data_frame=\n%s\nerr_code=%s, error=%s, affected_rows=%s"
+            % (  # noqa: UP031
+                self.__class__.__name__,
+                self.resp_type,
+                self.query,
+                self.data_frame,
+                self.error_code,
+                self.error_message,
+                self.affected_rows,
+            )
         )
 
 

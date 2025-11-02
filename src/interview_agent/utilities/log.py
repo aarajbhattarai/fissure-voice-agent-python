@@ -65,7 +65,7 @@ def get_mindsdb_log_level() -> int:
     return min(console_handler_config_level, file_handler_config_level)
 
 
-def get_handlers_config(process_name:  Optional[str]) -> dict:
+def get_handlers_config(process_name: Optional[str]) -> dict:
     handlers_config = {}
     console_handler_config_level = logging.DEBUG
     if True:

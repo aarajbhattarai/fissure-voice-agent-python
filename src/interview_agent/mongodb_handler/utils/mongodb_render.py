@@ -77,7 +77,9 @@ class MongodbRender:
             filters = self.handle_where(node.where)
 
         group = {}
-        project = {"_id": 0}  # Hide _id field when it has not been explicitly requested.
+        project = {
+            "_id": 0
+        }  # Hide _id field when it has not been explicitly requested.
         if node.distinct:
             # Group by distinct fields.
             group = {"_id": {}}
@@ -103,7 +105,9 @@ class MongodbRender:
                         group[name] = {"$first": f"${name}"}  # Show field.
 
                 elif isinstance(col, Constant):
-                    val = str(col.value)  # Convert to string becuase it is interpreted as an index.
+                    val = str(
+                        col.value
+                    )  # Convert to string becuase it is interpreted as an index.
                     if col.alias is None:
                         alias = val
                     else:
@@ -237,7 +241,9 @@ class MongodbRender:
 
         return {"$expr": {op2: [val1, val2]}}
 
-    def where_element_convert(self, node: Union[Identifier, Latest, Constant, TypeCast]) -> Any:
+    def where_element_convert(
+        self, node: Union[Identifier, Latest, Constant, TypeCast]
+    ) -> Any:
         """
         Converts a WHERE element to the corresponding MongoDB query element.
 
@@ -257,7 +263,10 @@ class MongodbRender:
             return "LATEST"
         elif isinstance(node, Constant):
             return node.value
-        elif isinstance(node, TypeCast) and node.type_name.upper() in ("DATE", "DATETIME"):
+        elif isinstance(node, TypeCast) and node.type_name.upper() in (
+            "DATE",
+            "DATETIME",
+        ):
             formats = ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S.%f"]
             for format in formats:
                 try:

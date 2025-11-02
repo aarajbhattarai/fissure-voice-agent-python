@@ -1,4 +1,3 @@
-
 from typing import Any
 
 from interview_agent.mongodb_handler.response import (
@@ -97,6 +96,7 @@ class BaseHandler:
                 python data types (by default it str).
         """
         raise NotImplementedError()
+
 
 class DatabaseHandler(BaseHandler):
     """

@@ -21,7 +21,10 @@ logging.basicConfig(
 )
 load_dotenv(".env.local")
 
-def generate_session_folder_path(user_details: dict[str, Any],readable_timestamp: str) -> str:
+
+def generate_session_folder_path(
+    user_details: dict[str, Any], readable_timestamp: str
+) -> str:
     """
     Generate consistent folder structure for session files.
 
@@ -49,11 +52,11 @@ def create_s3_config() -> api.S3Upload:
 
 
 def create_egress_request(
-    room_name: str, user_details: dict[str, Any],readable_timestamp: str
+    room_name: str, user_details: dict[str, Any], readable_timestamp: str
 ) -> api.RoomCompositeEgressRequest:
     """Create egress request for room recording."""
     s3_config = create_s3_config()
-    folder_path = generate_session_folder_path(user_details,readable_timestamp)
+    folder_path = generate_session_folder_path(user_details, readable_timestamp)
     return api.RoomCompositeEgressRequest(
         room_name=room_name,
         layout="speaker",
@@ -72,11 +75,13 @@ def create_egress_request(
 
 
 async def setup_egress_recording(
-    ctx: JobContext, user_details: dict[str, Any],readable_timestamp: str
+    ctx: JobContext, user_details: dict[str, Any], readable_timestamp: str
 ) -> str:
     """Setup S3 egress recording and return egress ID."""
-    egress_request = create_egress_request(ctx.room.name, user_details,readable_timestamp)
-    folder_path = generate_session_folder_path(user_details,readable_timestamp)
+    egress_request = create_egress_request(
+        ctx.room.name, user_details, readable_timestamp
+    )
+    folder_path = generate_session_folder_path(user_details, readable_timestamp)
 
     # Initialize LiveKit API
     lk_api = api.LiveKitAPI(
@@ -96,22 +101,26 @@ async def setup_egress_recording(
         logger.error(f"Failed to start S3 egress: {e}")
         return None
 
+
 async def setup_transcript_callback(
-    ctx: JobContext, session: AgentSession, user_details: dict[str, Any],readable_timestamp: str
+    ctx: JobContext,
+    session: AgentSession,
+    user_details: dict[str, Any],
+    readable_timestamp: str,
 ) -> None:
     """Setup transcript saving callback to save both locally and to S3."""
 
     async def write_transcript():
-        folder_path = generate_session_folder_path(user_details,readable_timestamp)
+        folder_path = generate_session_folder_path(user_details, readable_timestamp)
 
         # Create local directory structure
         local_dir = os.path.join("/home/azureuser/voice-agent", folder_path)
 
         # Ensure the folder path doesn't end with a slash
-        folder_path = folder_path.rstrip('/')
+        folder_path = folder_path.rstrip("/")
 
         # Create local filename
-        local_filename = os.path.join(local_dir,"transcript.json")
+        local_filename = os.path.join(local_dir, "transcript.json")
 
         # Create S3 key using the exact folder_path provided
         s3_key = f"{folder_path}/transcript.json"
@@ -129,19 +138,19 @@ async def setup_transcript_callback(
             def upload_to_s3():
                 try:
                     s3_client = boto3.client(
-                        's3',
+                        "s3",
                         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
                         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                        region_name=os.getenv("AWS_REGION", "ap-southeast-2")
+                        region_name=os.getenv("AWS_REGION", "ap-southeast-2"),
                     )
-                    bucket_name = os.getenv("AWS_S3_BUCKET", "refobe-document-analytics")
+                    bucket_name = os.getenv(
+                        "AWS_S3_BUCKET", "refobe-document-analytics"
+                    )
                     # Upload the file to S3 using the exact folder_path
-                    s3_client.upload_file(
-                        local_filename,
-                        bucket_name,
-                        s3_key
+                    s3_client.upload_file(local_filename, bucket_name, s3_key)
+                    logger.info(
+                        f"Transcript uploaded to S3: s3://{bucket_name}/{s3_key}"
                     )
-                    logger.info(f"Transcript uploaded to S3: s3://{bucket_name}/{s3_key}")
                 except ClientError as e:
                     logger.error(f"S3 upload error: {e}")
                 except Exception as e:
@@ -155,6 +164,7 @@ async def setup_transcript_callback(
             logger.error(f"Failed to save transcript: {e}")
 
     ctx.add_shutdown_callback(write_transcript)
+
 
 async def setup_egress_cleanup(ctx: JobContext, egress_id: str) -> None:
     """Setup egress cleanup callback."""
@@ -180,4 +190,3 @@ async def setup_egress_cleanup(ctx: JobContext, egress_id: str) -> None:
                 logger.warning(f"Failed to stop egress: {e}")
 
     ctx.add_shutdown_callback(cleanup_egress)
-

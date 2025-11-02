@@ -6,7 +6,15 @@ from dotenv import load_dotenv
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.util.types import AttributeValue
 
-from livekit.agents import Agent, AgentSession, JobContext, RunContext, WorkerOptions, cli, metrics
+from livekit.agents import (
+    Agent,
+    AgentSession,
+    JobContext,
+    RunContext,
+    WorkerOptions,
+    cli,
+    metrics,
+)
 from livekit.agents.llm import function_tool
 from livekit.agents.telemetry import set_tracer_provider
 from livekit.agents.voice import MetricsCollectedEvent
@@ -37,7 +45,9 @@ def setup_langfuse(
     host = host or os.getenv("LANGFUSE_HOST")
 
     if not public_key or not secret_key or not host:
-        raise ValueError("LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, and LANGFUSE_HOST must be set")
+        raise ValueError(
+            "LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, and LANGFUSE_HOST must be set"
+        )
 
     langfuse_auth = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
     os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = f"{host.rstrip('/')}/api/public/otel"
@@ -47,9 +57,6 @@ def setup_langfuse(
     trace_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     set_tracer_provider(trace_provider, metadata=metadata)
     return trace_provider
-
-
-
 
 
 async def entrypoint(ctx: JobContext):
@@ -74,5 +81,3 @@ async def entrypoint(ctx: JobContext):
         metrics.log_metrics(ev.metrics)
 
     await session.start(agent=Kelly(), room=ctx.room)
-
-

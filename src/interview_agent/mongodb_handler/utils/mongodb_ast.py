@@ -38,10 +38,24 @@ class MongoToAst:
             elif step["method"] == "skip":
                 skip = step["args"][0]
 
-        return self.find(collection, filter=filter, sort=sort, projection=projection, limit=limit, skip=skip)
+        return self.find(
+            collection,
+            filter=filter,
+            sort=sort,
+            projection=projection,
+            limit=limit,
+            skip=skip,
+        )
 
     def find(
-        self, collection: t.Union[list, str], filter=None, sort=None, projection=None, limit=None, skip=None, **kwargs
+        self,
+        collection: t.Union[list, str],
+        filter=None,
+        sort=None,
+        projection=None,
+        limit=None,
+        skip=None,
+        **kwargs,
     ):
         # https://www.mongodb.com/docs/v4.2/reference/method/db.collection.find/
 
@@ -50,7 +64,12 @@ class MongoToAst:
             # sort is dict
             order_by = []
             for col, direction in sort.items():
-                order_by.append(OrderBy(field=Identifier(parts=[col]), direction="DESC" if direction == -1 else "ASC"))
+                order_by.append(
+                    OrderBy(
+                        field=Identifier(parts=[col]),
+                        direction="DESC" if direction == -1 else "ASC",
+                    )
+                )
 
         if projection is not None:
             targets = []
@@ -132,7 +151,14 @@ class MongoToAst:
         return ast_filter
 
     def handle_filter(self, value):
-        ops = {"$ge": ">=", "$gt": ">", "$lt": "<", "$le": "<=", "$ne": "!=", "$eq": "="}
+        ops = {
+            "$ge": ">=",
+            "$gt": ">",
+            "$lt": "<",
+            "$le": "<=",
+            "$ne": "!=",
+            "$eq": "=",
+        }
         in_ops = {"$in": "in", "$nin": "not in"}
 
         if isinstance(value, dict):
@@ -238,4 +264,7 @@ class MongoWhereParser:
 
     @staticmethod
     def test(cls):
-        assert cls('this.a ==1 and "te" >= latest').to_string() == "a = 1 AND 'te' >= LATEST"
+        assert (
+            cls('this.a ==1 and "te" >= latest').to_string()
+            == "a = 1 AND 'te' >= LATEST"
+        )

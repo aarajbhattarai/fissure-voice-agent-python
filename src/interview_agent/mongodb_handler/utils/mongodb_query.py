@@ -29,7 +29,11 @@ class MongoQuery:
         #     'args': [{c: 3}]
         # }
 
-        if "method" not in step or "args" not in step or not isinstance(step["args"], list):
+        if (
+            "method" not in step
+            or "args" not in step
+            or not isinstance(step["args"], list)
+        ):
             raise AttributeError(f"Wrong step {step}")
 
         self.pipeline.append(step)
