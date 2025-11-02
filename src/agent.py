@@ -60,9 +60,9 @@ class PTEInterviewAgent(Agent):
         room: rtc.Room,
         user_id: str,
         user_details: Optional[dict[str, Any]] = None,
+        instructions=load_prompt("pte_interview.yaml"),
     ) -> None:
         super().__init__(
-            instructions=load_prompt("pte_interview.yaml"),
             stt=deepgram.STT(),
             llm=openai.LLM(model="gpt-5-nano"),
             tts=deepgram.TTS(),
