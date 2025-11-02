@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "interview-agent"
+version = "1.0.0"
+description = "Simple Interview"
+requires-python = ">=3.9"
+
+dependencies = [
+    "langfuse>=3.3.2",
+    "livekit-agents[openai,turn-detector,silero,cartesia,deepgram]~=1.2",
+    "livekit-plugins-noise-cancellation~=0.2",
+    "python-dotenv",
+    "logging>=0.4.9.6",
+    "torch>=2.8.0",
+    "torchaudio>=2.8.0",
+    "torchvision>=0.23.0",
+    "boto3>=1.40.33",
+    "autoflake>=2.3.1",
+    "pymongo>=4.15.1",
+    "mindsdb-sql-parser>=0.11.4",
+    "pandas>=2.3.2",
+    "mem0ai>=0.1.116",
+    "uvicorn>=0.37.0",
+    "fastapi>=0.117.1",
+    "whispey>=3.2.8",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "A", "C4", "UP", "SIM", "RUF"]
+ignore = ["E501"]  # Line too long (handled by formatter)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
