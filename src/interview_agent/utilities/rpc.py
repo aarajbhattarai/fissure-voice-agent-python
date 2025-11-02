@@ -59,7 +59,7 @@ class StructuredDataStreamer:
             for chunk in data_chunks:
                 json_str = json.dumps(chunk, ensure_ascii=False)
                 await writer.write(json_str)
-                print("Hello0------------------------------------ -------  -", json_str)
+                print("Hello0--------------------------------------------", json_str)
                 logger.debug(f"Wrote chunk to stream: {len(json_str)} bytes")
 
             # IMPORTANT: Use aclose() not close()
