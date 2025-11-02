@@ -12,3 +12,5 @@ KMS
 .ruff_cache
 nohup.out
 interview_data
+uv.lock
+output.out
