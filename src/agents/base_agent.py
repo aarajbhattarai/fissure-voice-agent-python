@@ -24,6 +24,14 @@ from typing_extensions import TypedDict
 from interview_agent.utilities.rpc import StructuredDataStreamer
 from interview_agent.utilities.structured_output import process_structured_output
 
+from .conversation_summary import ConversationSummarizer, SummaryStorage
+from .user_data import (
+    ConversationHistory,
+    SessionData,
+    UserData,
+    create_user_data_from_dict,
+)
+
 logger = logging.getLogger("base-agent")
 
 
@@ -81,7 +89,33 @@ class BaseAgent(Agent):
         self.prompt = prompt
         self.schema_class = schema_class
         self.config = config
-        self.user_details = user_details or {}
+
+        # User data management
+        self.user_data = create_user_data_from_dict(
+            {**user_details, "user_id": user_id} if user_details else {"user_id": user_id}
+        )
+
+        # Session data
+        self.session_data = SessionData(
+            session_id=session_id,
+            user_data=self.user_data,
+            tenant_id=config.get("tenant_config", {}).get("tenant_id", "default"),
+            agent_id=config.get("agent_id", "unknown"),
+        )
+
+        # Conversation tracking
+        self.conversation_history = ConversationHistory(
+            session_id=session_id, user_id=user_id
+        )
+
+        # Conversation summary
+        self.summarizer: Optional[ConversationSummarizer] = None
+        if config.get("summary_config", {}).get("enabled", True):
+            self.summarizer = ConversationSummarizer(
+                llm_provider=config.get("llm_config", {}).get("provider", "openai"),
+                model=config.get("summary_config", {}).get("model")
+                or config.get("llm_config", {}).get("model", "gpt-5-nano"),
+            )
 
         # Optional tracing
         self.tracer = tracer
@@ -93,6 +127,8 @@ class BaseAgent(Agent):
         # Internal state
         self._is_llm_response = False
         self._background_tasks: set[asyncio.Task] = set()
+        self._last_user_message = ""
+        self._last_agent_message = ""
 
     def trace_span(self, name: str):
         """
@@ -132,7 +168,7 @@ class BaseAgent(Agent):
             self.set_user_attributes(span)
 
             # Create personalized welcome message
-            user_name = self.user_details.get("name", "")
+            user_name = self.user_data.name if hasattr(self.user_data, "name") else None
             welcome_message = (
                 f"Welcome to your session{', ' + user_name if user_name else ''}. "
                 f"I'm here to assist you. Let's begin!"
@@ -143,7 +179,17 @@ class BaseAgent(Agent):
 
             try:
                 await self.session.say(text=welcome_message)
+
+                # Track welcome message in conversation history
+                self.conversation_history.add_turn(
+                    speaker="agent", message=welcome_message
+                )
+
                 logger.info(f"Session started for user {self.user_id}")
+                logger.info(
+                    f"User data: name={self.user_data.name if hasattr(self.user_data, 'name') else 'N/A'}, "
+                    f"institution={self.user_data.institution if hasattr(self.user_data, 'institution') else 'N/A'}"
+                )
             except Exception as e:
                 logger.error(f"Failed to send welcome message: {e}", exc_info=True)
                 if span:
@@ -260,6 +306,12 @@ class BaseAgent(Agent):
                             f"Speech recognized for {self.user_id}: {transcribed_text[:50]}..."
                         )
 
+                        # Track user message in conversation history
+                        self._last_user_message = transcribed_text
+                        self.conversation_history.add_turn(
+                            speaker="user", message=transcribed_text
+                        )
+
                         # Set output attributes
                         if span:
                             span.set_attribute("output.value", transcribed_text)
@@ -358,6 +410,12 @@ class BaseAgent(Agent):
                     )
                 )
 
+                # Track agent message in conversation history
+                self._last_agent_message = acc_text
+                self.conversation_history.add_turn(
+                    speaker="agent", message=acc_text
+                )
+
                 logger.info(
                     f"Completed streaming {chunk_count} chunks ({len(acc_text)} chars) in {duration:.2f}s"
                 )
@@ -377,16 +435,95 @@ class BaseAgent(Agent):
         async for chunk in result:
             yield chunk
 
+    async def generate_summary(self) -> Optional[dict]:
+        """
+        Generate conversation summary.
+
+        Returns:
+            Summary data dictionary or None if summarizer not configured
+        """
+        if not self.summarizer:
+            logger.info("Summary generation disabled")
+            return None
+
+        try:
+            logger.info("Generating conversation summary...")
+
+            # Get full transcript
+            transcript = self.conversation_history.get_full_transcript()
+
+            # Generate summary
+            summary_data = await self.summarizer.generate_summary(
+                transcript=transcript,
+                user_data=self.user_data.to_dict(),
+                session_metadata={
+                    "session_id": self.session_id,
+                    "agent_id": self.config.get("agent_id"),
+                    "total_turns": self.conversation_history.total_turns,
+                    "duration_seconds": self.session_data.duration_seconds,
+                },
+            )
+
+            # Set summary in conversation history
+            self.conversation_history.set_summary(summary_data["summary"])
+
+            logger.info("Summary generated successfully")
+
+            # Send summary to frontend
+            await self.data_streamer.send_structured_data(
+                topic="conversation-summary",
+                data={
+                    "session_id": self.session_id,
+                    "summary": summary_data["summary"],
+                    "structured_summary": summary_data.get("structured_summary", {}),
+                    "total_turns": self.conversation_history.total_turns,
+                },
+            )
+
+            return summary_data
+
+        except Exception as e:
+            logger.error(f"Failed to generate summary: {e}", exc_info=True)
+            return None
+
     async def close(self) -> None:
         """Clean up resources on session end."""
+        logger.info(f"Closing agent session: {self.session_id}")
+
+        # Mark session as ended
+        self.session_data.end_session(status="completed")
+
+        # Generate conversation summary
+        summary_data = await self.generate_summary()
+
+        # Wait for background tasks
         if getattr(self, "_background_tasks", None) and self._background_tasks:
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
             self._background_tasks.clear()
+
+        # Send final session data to frontend
+        await self.data_streamer.send_structured_data(
+            topic="session-complete",
+            data={
+                "session_id": self.session_id,
+                "user_id": self.user_id,
+                "total_turns": self.conversation_history.total_turns,
+                "duration_seconds": self.session_data.duration_seconds,
+                "status": self.session_data.status,
+                "summary_available": summary_data is not None,
+            },
+        )
 
         # Create final span
         with self.trace_span("session_end") as span:
             self.set_user_attributes(span)
             if span:
                 span.set_attribute("session.ended", True)
+                span.set_attribute("total_turns", self.conversation_history.total_turns)
+                span.set_attribute("duration_seconds", self.session_data.duration_seconds or 0)
 
-        logger.info(f"Agent session ended: {self.session_id}")
+        logger.info(
+            f"Agent session ended: {self.session_id} "
+            f"({self.conversation_history.total_turns} turns, "
+            f"{self.session_data.duration_seconds:.2f}s)"
+        )

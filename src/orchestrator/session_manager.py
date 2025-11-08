@@ -10,6 +10,8 @@ from uuid import uuid4
 
 from livekit import rtc
 
+from agents.session_storage import SessionStorage
+
 from .agent_factory import AgentFactory
 from .configuration_store import ConfigurationStore
 
@@ -23,6 +25,7 @@ class SessionManager:
         self,
         agent_factory: AgentFactory,
         config_store: ConfigurationStore,
+        session_storage: Optional[SessionStorage] = None,
         max_concurrent_sessions: int = 100,
     ):
         """
@@ -31,10 +34,12 @@ class SessionManager:
         Args:
             agent_factory: Agent factory instance
             config_store: Configuration store instance
+            session_storage: Optional session storage for persistence
             max_concurrent_sessions: Maximum concurrent sessions allowed
         """
         self.factory = agent_factory
         self.config_store = config_store
+        self.session_storage = session_storage
         self.active_sessions: dict[str, Any] = {}
         self._semaphore = asyncio.Semaphore(max_concurrent_sessions)
         self._session_locks: dict[str, asyncio.Lock] = {}
@@ -122,7 +127,39 @@ class SessionManager:
 
             # Acquire lock to prevent concurrent access
             async with self._session_locks[session_id]:
+                # Close agent (generates summary)
                 await agent.close()
+
+                # Save to storage if configured
+                if self.session_storage:
+                    try:
+                        # Save session data
+                        await self.session_storage.save_session(agent.session_data)
+
+                        # Save conversation history
+                        await self.session_storage.save_conversation(
+                            agent.conversation_history
+                        )
+
+                        # Save summary if available
+                        if agent.conversation_history.summary:
+                            await self.session_storage.save_summary(
+                                session_id=session_id,
+                                user_id=agent.user_id,
+                                summary_data={
+                                    "summary": agent.conversation_history.summary,
+                                    "structured_summary": {},
+                                    "model": agent.config.get("llm_config", {}).get(
+                                        "model"
+                                    ),
+                                },
+                                conversation_history=agent.conversation_history.to_dict(),
+                            )
+
+                        logger.info(f"Saved session data to storage: {session_id}")
+                    except Exception as e:
+                        logger.error(f"Failed to save session data: {e}", exc_info=True)
+
                 del self.active_sessions[session_id]
                 del self._session_locks[session_id]
 
