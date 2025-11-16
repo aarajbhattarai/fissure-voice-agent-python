@@ -4,32 +4,65 @@ FastAPI admin API for dynamic agent configuration management.
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from orchestrator.configuration_store import ConfigurationStore
 
 logger = logging.getLogger("admin-api")
 
-# Initialize FastAPI app
+# Module-level singleton for configuration store
+_config_store: Optional[ConfigurationStore] = None
+
+
+async def get_config_store() -> ConfigurationStore:
+    """
+    Get the singleton configuration store instance.
+
+    This should only be called after the app lifespan has initialized the store.
+    """
+    if _config_store is None:
+        raise RuntimeError("Configuration store not initialized. App lifespan not started.")
+    return _config_store
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for FastAPI app.
+
+    Initializes configuration store on startup and closes it on shutdown.
+    """
+    global _config_store
+
+    # Startup
+    logger.info("Initializing configuration store...")
+    _config_store = ConfigurationStore(
+        connection_string=os.getenv("MONGO_URI", "mongodb://localhost:27017"),
+        database="agent_configs",
+    )
+    await _config_store.initialize()
+    logger.info("Configuration store ready")
+
+    yield
+
+    # Shutdown
+    logger.info("Closing configuration store...")
+    if _config_store:
+        await _config_store.close()
+    logger.info("Configuration store closed")
+
+
+# Initialize FastAPI app with lifespan
 app = FastAPI(
     title="Agent Configuration API",
     description="API for managing dynamic agent configurations",
     version="1.0.0",
+    lifespan=lifespan,
 )
-
-
-# Dependency injection for configuration store
-async def get_config_store() -> ConfigurationStore:
-    """Get configuration store instance."""
-    store = ConfigurationStore(
-        connection_string=os.getenv("MONGO_URI", "mongodb://localhost:27017"),
-        database="agent_configs",
-    )
-    await store.initialize()
-    return store
 
 
 # Pydantic models for API requests/responses
@@ -129,20 +162,17 @@ class AgentConfigRequest(BaseModel):
 
 
 @app.post("/api/v1/agents/config", status_code=201)
-async def create_agent_config(
-    config: AgentConfigRequest,
-    store: ConfigurationStore = Depends(get_config_store),
-):
+async def create_agent_config(config: AgentConfigRequest):
     """
     Create a new agent configuration.
 
     Args:
         config: Agent configuration
-        store: Configuration store
 
     Returns:
         Created configuration details
     """
+    store = await get_config_store()
     try:
         config_id = await store.create_agent_config(config.dict())
         return {
@@ -158,22 +188,18 @@ async def create_agent_config(
 
 
 @app.get("/api/v1/agents/config/{agent_id}")
-async def get_agent_config(
-    agent_id: str,
-    version: Optional[str] = None,
-    store: ConfigurationStore = Depends(get_config_store),
-):
+async def get_agent_config(agent_id: str, version: Optional[str] = None):
     """
     Retrieve agent configuration.
 
     Args:
         agent_id: Agent identifier
         version: Optional version (defaults to latest)
-        store: Configuration store
 
     Returns:
         Agent configuration
     """
+    store = await get_config_store()
     try:
         config = await store.get_agent_config(agent_id, version)
         return config
@@ -185,22 +211,18 @@ async def get_agent_config(
 
 
 @app.put("/api/v1/agents/config/{agent_id}")
-async def update_agent_config(
-    agent_id: str,
-    updates: dict,
-    store: ConfigurationStore = Depends(get_config_store),
-):
+async def update_agent_config(agent_id: str, updates: dict):
     """
     Update agent configuration.
 
     Args:
         agent_id: Agent identifier
         updates: Fields to update
-        store: Configuration store
 
     Returns:
         Update status
     """
+    store = await get_config_store()
     try:
         success = await store.update_agent_config(agent_id, updates)
         return {"status": "updated" if success else "no_changes", "agent_id": agent_id}
@@ -212,19 +234,17 @@ async def update_agent_config(
 
 
 @app.delete("/api/v1/agents/config/{agent_id}")
-async def delete_agent_config(
-    agent_id: str, store: ConfigurationStore = Depends(get_config_store)
-):
+async def delete_agent_config(agent_id: str):
     """
     Delete (disable) agent configuration.
 
     Args:
         agent_id: Agent identifier
-        store: Configuration store
 
     Returns:
         Delete status
     """
+    store = await get_config_store()
     try:
         success = await store.delete_agent_config(agent_id)
         return {"status": "deleted" if success else "not_found", "agent_id": agent_id}
@@ -234,22 +254,18 @@ async def delete_agent_config(
 
 
 @app.post("/api/v1/agents/config/{agent_id}/schema/fields")
-async def add_schema_field(
-    agent_id: str,
-    field: SchemaFieldRequest,
-    store: ConfigurationStore = Depends(get_config_store),
-):
+async def add_schema_field(agent_id: str, field: SchemaFieldRequest):
     """
     Add a new field to agent's structured output schema.
 
     Args:
         agent_id: Agent identifier
         field: Field definition
-        store: Configuration store
 
     Returns:
         Update status
     """
+    store = await get_config_store()
     try:
         config = await store.get_agent_config(agent_id)
 
@@ -270,22 +286,18 @@ async def add_schema_field(
 
 
 @app.delete("/api/v1/agents/config/{agent_id}/schema/fields/{field_name}")
-async def remove_schema_field(
-    agent_id: str,
-    field_name: str,
-    store: ConfigurationStore = Depends(get_config_store),
-):
+async def remove_schema_field(agent_id: str, field_name: str):
     """
     Remove a field from agent's structured output schema.
 
     Args:
         agent_id: Agent identifier
         field_name: Name of field to remove
-        store: Configuration store
 
     Returns:
         Update status
     """
+    store = await get_config_store()
     try:
         config = await store.get_agent_config(agent_id)
 
@@ -314,22 +326,18 @@ async def remove_schema_field(
 
 
 @app.post("/api/v1/agents/config/{agent_id}/tracing/toggle")
-async def toggle_tracing(
-    agent_id: str,
-    enabled: bool,
-    store: ConfigurationStore = Depends(get_config_store),
-):
+async def toggle_tracing(agent_id: str, enabled: bool):
     """
     Toggle Langfuse tracing for an agent.
 
     Args:
         agent_id: Agent identifier
         enabled: Enable or disable tracing
-        store: Configuration store
 
     Returns:
         Update status
     """
+    store = await get_config_store()
     try:
         config = await store.get_agent_config(agent_id)
         config["tracing_config"]["enabled"] = enabled
@@ -347,22 +355,18 @@ async def toggle_tracing(
 
 
 @app.get("/api/v1/agents/list")
-async def list_agents(
-    enabled_only: bool = True,
-    limit: int = 100,
-    store: ConfigurationStore = Depends(get_config_store),
-):
+async def list_agents(enabled_only: bool = True, limit: int = 100):
     """
     List all agent configurations.
 
     Args:
         enabled_only: Only return enabled configurations
         limit: Maximum number of results
-        store: Configuration store
 
     Returns:
         List of agent configurations
     """
+    store = await get_config_store()
     try:
         configs = await store.list_agent_configs(enabled_only, limit)
         return {"agents": configs, "count": len(configs)}
