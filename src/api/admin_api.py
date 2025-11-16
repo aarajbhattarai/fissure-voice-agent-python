@@ -25,7 +25,9 @@ async def get_config_store() -> ConfigurationStore:
     This should only be called after the app lifespan has initialized the store.
     """
     if _config_store is None:
-        raise RuntimeError("Configuration store not initialized. App lifespan not started.")
+        raise RuntimeError(
+            "Configuration store not initialized. App lifespan not started."
+        )
     return _config_store
 
 
@@ -72,11 +74,15 @@ class SchemaFieldRequest(BaseModel):
     """Schema field definition."""
 
     field_name: str = Field(..., description="Field name (valid Python identifier)")
-    field_type: str = Field(..., description="Field type (e.g., 'str', 'int', 'list[str]')")
+    field_type: str = Field(
+        ..., description="Field type (e.g., 'str', 'int', 'list[str]')"
+    )
     description: str = Field(..., description="Field description")
     required: bool = Field(True, description="Whether field is required")
     default: Optional[Any] = Field(None, description="Default value if not required")
-    constraints: Optional[dict] = Field(None, description="Field constraints (e.g., {'ge': 1, 'le': 10})")
+    constraints: Optional[dict] = Field(
+        None, description="Field constraints (e.g., {'ge': 1, 'le': 10})"
+    )
     metadata: Optional[dict] = Field(None, description="Additional metadata")
 
 
@@ -104,7 +110,9 @@ class LLMConfig(BaseModel):
     model: str = Field("gpt-5-nano", description="Model name")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Temperature")
     max_tokens: Optional[int] = Field(None, description="Max tokens")
-    supports_structured_output: bool = Field(True, description="Supports structured output")
+    supports_structured_output: bool = Field(
+        True, description="Supports structured output"
+    )
 
 
 class TTSConfig(BaseModel):
@@ -310,7 +318,9 @@ async def remove_schema_field(agent_id: str, field_name: str):
         ]
 
         if len(config["schema_config"]["fields"]) == original_count:
-            raise HTTPException(status_code=404, detail=f"Field not found: {field_name}")
+            raise HTTPException(
+                status_code=404, detail=f"Field not found: {field_name}"
+            )
 
         # Update config
         await store.update_agent_config(
