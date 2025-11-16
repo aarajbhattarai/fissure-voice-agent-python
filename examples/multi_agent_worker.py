@@ -22,7 +22,13 @@ import sys
 from dotenv import load_dotenv
 
 from livekit import agents
-from livekit.agents import AgentSession, RoomInputOptions, RoomOutputOptions, WorkerOptions, cli
+from livekit.agents import (
+    AgentSession,
+    RoomInputOptions,
+    RoomOutputOptions,
+    WorkerOptions,
+    cli,
+)
 from livekit.plugins import noise_cancellation
 
 # Add src to path
@@ -40,6 +46,7 @@ load_dotenv()
 # =======================
 # AGENT ROUTING LOGIC
 # =======================
+
 
 def determine_agent_type(room_metadata: dict) -> str:
     """
@@ -97,6 +104,7 @@ def determine_agent_type(room_metadata: dict) -> str:
 # =======================
 # ENTRYPOINT
 # =======================
+
 
 async def entrypoint(ctx: agents.JobContext) -> None:
     """
@@ -169,27 +177,28 @@ async def entrypoint(ctx: agents.JobContext) -> None:
         logger.error(f"Failed to create session: {e}")
         return
 
-    # 9. Get agent config to check if tracing is enabled
-    config = await config_store.get_agent_config(agent_id)
+    # 9. Setup Langfuse tracing for all sessions
+    trace_provider = setup_langfuse(
+        metadata={
+            "langfuse.session.id": session_id,
+            "langfuse.user.id": user_id,
+        }
+    )
 
-    # 10. Conditionally setup tracing
-    if config.get("tracing_config", {}).get("enabled", False):
-        trace_provider = setup_langfuse(metadata={"langfuse.session.id": session_id})
+    async def flush_trace():
+        trace_provider.force_flush()
 
-        async def flush_trace():
-            trace_provider.force_flush()
+    ctx.add_shutdown_callback(flush_trace)
+    logger.info(f"Langfuse tracing enabled for session: {session_id}")
 
-        ctx.add_shutdown_callback(flush_trace)
-        logger.info("Langfuse tracing enabled")
-
-    # 11. Configure agent session
+    # 10. Configure agent session
     agent = session_manager.active_sessions[session_id]
 
     session = AgentSession(
         vad=ctx.proc.userdata["vad"], use_tts_aligned_transcript=True
     )
 
-    # 12. Start session
+    # 11. Start session
     await session.start(
         room=ctx.room,
         agent=agent,
@@ -205,7 +214,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     logger.info(f"Agent session started successfully: {agent_id}")
 
-    # 13. Cleanup on shutdown
+    # 12. Cleanup on shutdown
     async def cleanup():
         logger.info(f"Cleaning up session: {session_id}")
         await session_manager.end_session(session_id)

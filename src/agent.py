@@ -495,17 +495,25 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     """Main entry point for the LiveKit agent with S3 recording."""
     # Readable timestamp is to organize the recordings in a single directory
     # readable_timestamp = datetime.now(timezone(timedelta(hours=5, minutes=45))).strftime("%Y-%m-%d_%H-%M-%S")
-    # Setup tracing
-    trace_provider = setup_langfuse(metadata={"langfuse.session.id": ctx.room.name})
+
+    # Get user details
+    user_details = get_default_user_details()
+    user_id = "user-Aaraj"  # Will be extracted from room metadata in production
+
+    # Setup Langfuse tracing for all sessions
+    trace_provider = setup_langfuse(
+        metadata={
+            "langfuse.session.id": ctx.room.name,
+            "langfuse.user.id": user_id,
+        }
+    )
 
     # Add shutdown callback to flush traces
     async def flush_trace():
         trace_provider.force_flush()
 
     ctx.add_shutdown_callback(flush_trace)
-
-    # Get user details
-    user_details = get_default_user_details()
+    logger.info(f"Langfuse tracing enabled for session: {ctx.room.name}")
 
     # # Setup resource cleanup
     # await setup_resource_cleanup(ctx)
@@ -547,7 +555,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
         agent=PTEInterviewAgent(
             room=ctx.room,
             user_details=user_details,
-            user_id="user-Aaraj",
+            user_id=user_id,
         ),
         room_input_options=room_input,
         room_output_options=room_output,
