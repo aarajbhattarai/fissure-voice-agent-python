@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SupportTurn",
+  "description": "Structured output schema for customer support agent responses",
+  "type": "object",
+  "properties": {
+    "voice_instructions": {
+      "type": "string",
+      "description": "TTS directives for empathetic delivery"
+    },
+    "system_response": {
+      "type": "string",
+      "description": "The spoken response to the customer"
+    },
+    "issue_category": {
+      "type": "string",
+      "enum": [
+        "technical",
+        "billing",
+        "account",
+        "feature_request",
+        "other"
+      ],
+      "description": "Category of the customer issue"
+    },
+    "sentiment": {
+      "type": "string",
+      "enum": [
+        "positive",
+        "neutral",
+        "frustrated",
+        "angry"
+      ],
+      "description": "Detected customer sentiment"
+    },
+    "issue_resolved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the issue has been resolved"
+    },
+    "escalation_needed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether escalation to human support is needed"
+    },
+    "next_action": {
+      "type": "string",
+      "description": "Recommended next step for resolution"
+    },
+    "troubleshooting_steps_taken": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of troubleshooting steps already attempted"
+    }
+  },
+  "required": ["system_response"],
+  "additionalProperties": false
+}
