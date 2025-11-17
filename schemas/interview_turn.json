@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InterviewTurn",
+  "description": "Structured output schema for interview agent responses",
+  "type": "object",
+  "properties": {
+    "voice_instructions": {
+      "type": "string",
+      "description": "TTS directives for tone, pace, and delivery style"
+    },
+    "system_response": {
+      "type": "string",
+      "description": "The spoken response to the user"
+    },
+    "internal_assessment": {
+      "type": "string",
+      "description": "Private evaluation of the user's response (not spoken)"
+    },
+    "interview_stage": {
+      "type": "string",
+      "enum": [
+        "document_check",
+        "background_inquiry",
+        "academic_assessment",
+        "financial_verification",
+        "intent_evaluation",
+        "closing_remarks"
+      ],
+      "description": "Current stage of the interview"
+    },
+    "credibility_score": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Running credibility assessment score (1-10)"
+    },
+    "red_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of identified concerns or inconsistencies"
+    },
+    "behavioral_observations": {
+      "type": "object",
+      "properties": {
+        "confidence_level": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "clarity": {
+          "type": "string",
+          "enum": ["unclear", "moderate", "clear"]
+        },
+        "consistency": {
+          "type": "boolean",
+          "description": "Whether responses are consistent with previous answers"
+        }
+      }
+    },
+    "next_question_category": {
+      "type": "string",
+      "description": "Category for the next question to ask"
+    }
+  },
+  "required": ["system_response"],
+  "additionalProperties": false
+}
